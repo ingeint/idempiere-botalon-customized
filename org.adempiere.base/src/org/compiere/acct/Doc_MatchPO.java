@@ -591,9 +591,9 @@ public class Doc_MatchPO extends Doc
 			if (tAmt.scale() > as.getCostingPrecision())
 				tAmt = tAmt.setScale(as.getCostingPrecision(), RoundingMode.HALF_UP);
 			// Set Total Amount and Total Quantity from Matched PO 
-			if (!MCostDetail.createOrder(as, m_oLine.getAD_Org_ID(), 
+			if (!MCostDetail.createOrderInOut(as, m_oLine.getAD_Org_ID(), 
 					getM_Product_ID(), mMatchPO.getM_AttributeSetInstance_ID(),
-					m_oLine.getC_OrderLine_ID(), 0,		//	no cost element
+					m_oLine.getC_OrderLine_ID(), m_ioLine.getM_InOutLine_ID(), 0,		//	no cost element
 					tAmt, tQty,			//	Delivered
 					m_oLine.getDescription(), getTrxName()))
 			{
@@ -621,9 +621,9 @@ public class Doc_MatchPO extends Doc
 			amt = amt.multiply(tQty);
 			if (amt.scale() > as.getCostingPrecision())
 				amt = amt.setScale(as.getCostingPrecision(), RoundingMode.HALF_UP);
-			if (!MCostDetail.createOrder(as, m_oLine.getAD_Org_ID(), 
+			if (!MCostDetail.createOrderInOut(as, m_oLine.getAD_Org_ID(), 
 					getM_Product_ID(), mMatchPO.getM_AttributeSetInstance_ID(),
-					m_oLine.getC_OrderLine_ID(), elementId,
+					m_oLine.getC_OrderLine_ID(), m_ioLine.getM_InOutLine_ID(), elementId,
 					amt, tQty,			//	Delivered
 					m_oLine.getDescription(), getTrxName()))
 			{

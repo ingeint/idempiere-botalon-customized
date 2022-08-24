@@ -124,6 +124,76 @@ public class MCostDetail extends X_M_CostDetail
 		if (s_log.isLoggable(Level.CONFIG)) s_log.config("(" + ok + ") " + cd);
 		return ok;
 	}	//	createOrder
+	
+	
+	/**
+	 * 	Create New Order Cost Detail for Purchase Orders and InOut.
+	 * 	Called from Doc_MatchPO
+	 *	@param as accounting schema
+	 *	@param AD_Org_ID org
+	 *	@param M_Product_ID product
+	 *	@param M_AttributeSetInstance_ID asi
+	 *	@param C_OrderLine_ID order
+	 **	@param M_InOutLine_ID InOut
+	 *	@param M_CostElement_ID optional cost element for Freight
+	 *	@param Amt amt total amount
+	 *	@param Qty qty
+	 *	@param Description optional description
+	 *	@param trxName transaction
+	 *	@return true if created
+	 */
+	public static boolean createOrderInOut (MAcctSchema as, int AD_Org_ID, 
+		int M_Product_ID, int M_AttributeSetInstance_ID,
+		int C_OrderLine_ID, int M_InOutLine_ID, int M_CostElement_ID, 
+		BigDecimal Amt, BigDecimal Qty,
+		String Description, String trxName)
+	{
+		MCostDetail cd = getOrder (as.getCtx(), "C_OrderLine_ID=? AND M_InOutLine_ID =? AND Coalesce(M_CostElement_ID,0)="+M_CostElement_ID, 
+			C_OrderLine_ID, M_InOutLine_ID, M_AttributeSetInstance_ID, as.getC_AcctSchema_ID(), trxName);
+		//
+		if (cd == null)		//	createNew
+		{
+			cd = new MCostDetail (as, AD_Org_ID, 
+				M_Product_ID, M_AttributeSetInstance_ID, 
+				M_CostElement_ID, 
+				Amt, Qty, Description, trxName);
+			cd.setC_OrderLine_ID (C_OrderLine_ID);
+			cd.setM_InOutLine_ID(M_InOutLine_ID);
+		}
+		else
+		{
+			if (cd.isProcessed())
+			{
+				// MZ Goodwill
+				// set deltaAmt=Amt, deltaQty=qty, and set Cost Detail for Amt and Qty	 
+				cd.setDeltaAmt(Amt.subtract(cd.getAmt()));
+				cd.setDeltaQty(Qty.subtract(cd.getQty()));
+			}
+			else
+			{
+				cd.setDeltaAmt(BigDecimal.ZERO);
+				cd.setDeltaQty(BigDecimal.ZERO);
+				cd.setAmt(Amt);
+				cd.setQty(Qty);
+			}
+			if (cd.isDelta())
+			{
+				cd.setProcessed(false);
+				cd.setAmt(Amt);
+				cd.setQty(Qty);
+			}
+			// end MZ
+			else if (cd.isProcessed())
+				return true;	//	nothing to do
+		}
+		boolean ok = cd.save();
+		if (ok && !cd.isProcessed())
+		{
+			ok = cd.process();
+		}
+		if (s_log.isLoggable(Level.CONFIG)) s_log.config("(" + ok + ") " + cd);
+		return ok;
+	}	//	createOrder
 
 	
 	/**
@@ -215,7 +285,7 @@ public class MCostDetail extends X_M_CostDetail
 		BigDecimal Amt, BigDecimal Qty,
 		String Description, boolean IsSOTrx, String trxName)
 	{
-		MCostDetail cd = get (as.getCtx(), "M_InOutLine_ID=? AND Coalesce(M_CostElement_ID,0)="+M_CostElement_ID, 
+		MCostDetail cd = get (as.getCtx(), "M_InOutLine_ID=? AND C_OrderLine_ID ISNULL AND Coalesce(M_CostElement_ID,0)="+M_CostElement_ID, 
 			M_InOutLine_ID, M_AttributeSetInstance_ID, as.getC_AcctSchema_ID(), trxName);
 		//
 		if (cd == null)		//	createNew
@@ -663,6 +733,28 @@ public class MCostDetail extends X_M_CostDetail
 		return retValue;
 	}	//	get
 	
+	/**************************************************************************
+	 * 	Get Cost Detail Order
+	 *	@param ctx context
+	 *	@param whereClause where clause
+	 *	@param ID 1st parameter
+	 *	@param M_InOutLine_ID 2st parameter
+	 *  @param M_AttributeSetInstance_ID ASI
+	 *	@param trxName trx
+	 *	@return cost detail
+	 */
+	public static MCostDetail getOrder (Properties ctx, String whereClause, 
+		int ID, int M_InOutLine_ID, int M_AttributeSetInstance_ID, int C_AcctSchema_ID, String trxName)
+	{
+		StringBuilder localWhereClause = new StringBuilder(whereClause)
+			.append(" AND M_AttributeSetInstance_ID=?")
+			.append(" AND C_AcctSchema_ID=?");
+		MCostDetail retValue = new Query(ctx,I_M_CostDetail.Table_Name,localWhereClause.toString(),trxName)
+		.setParameters(ID, M_InOutLine_ID, M_AttributeSetInstance_ID,C_AcctSchema_ID)
+		.first();
+		return retValue;
+	}	//	get
+	
 	/**
 	 * 	Process Cost Details for product
 	 *	@param product product
@@ -789,7 +881,7 @@ public class MCostDetail extends X_M_CostDetail
 	 */
 	public boolean isOrder()
 	{
-		return getC_OrderLine_ID() != 0;
+		return getC_OrderLine_ID() != 0 && getM_InOutLine_ID() != 0;
 	}	//	isOrder
 
 	/**
@@ -807,7 +899,7 @@ public class MCostDetail extends X_M_CostDetail
 	 */
 	public boolean isShipment()
 	{
-		return isSOTrx() && getM_InOutLine_ID() != 0;
+		return isSOTrx() && getM_InOutLine_ID() != 0 && getC_OrderLine_ID() == 0;
 	}	//	isShipment
 	
 	/**
@@ -815,7 +907,7 @@ public class MCostDetail extends X_M_CostDetail
 	 */
 	public boolean isVendorRMA()
 	{
-		if (!isSOTrx() && getM_InOutLine_ID() > 0)
+		if (!isSOTrx() && getM_InOutLine_ID() > 0 && getC_OrderLine_ID() == 0)
 		{
 			String docBaseType = DB.getSQLValueString((String)null, 
 					INOUTLINE_DOCBASETYPE_SQL, getM_InOutLine_ID());
@@ -1041,7 +1133,7 @@ public class MCostDetail extends X_M_CostDetail
 			price = amt.divide(qty, precision, RoundingMode.HALF_UP);
 		
 		//	*** Purchase Order Detail Record ***
-		if (getC_OrderLine_ID() != 0)
+		if (getC_OrderLine_ID() != 0 && getM_InOutLine_ID() != 0)
 		{		
 			boolean isReturnTrx = qty.signum() < 0;
 			
@@ -1163,7 +1255,7 @@ public class MCostDetail extends X_M_CostDetail
 				if (log.isLoggable(Level.FINER)) log.finer("Inv - UserDef - " + cost);
 			}			
 		}
-		else if (getM_InOutLine_ID() != 0 && costAdjustment)
+		else if (getM_InOutLine_ID() != 0 && costAdjustment && getC_OrderLine_ID() == 0)
 		{
 			if (ce.isAverageInvoice())
 			{
@@ -1171,7 +1263,7 @@ public class MCostDetail extends X_M_CostDetail
 			}
 		}
 		//	*** Qty Adjustment Detail Record ***
-		else if (getM_InOutLine_ID() != 0 		//	AR Shipment Detail Record  
+		else if ((getM_InOutLine_ID() != 0 && getC_OrderLine_ID() == 0)		//	AR Shipment Detail Record  
 			|| getM_MovementLine_ID() != 0 
 			|| getM_InventoryLine_ID() != 0
 			|| getM_ProductionLine_ID() != 0
