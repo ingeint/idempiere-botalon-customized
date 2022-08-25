@@ -705,6 +705,9 @@ public final class Fact {
 					continue;
 				FactLine factLine = new FactLine(m_doc.getCtx(), m_doc.get_Table_ID(), m_doc.get_ID(),
 						dLine.getLine_ID(), m_trxName);
+				
+				factLine.set_ValueOfColumn("IsForAllDistribution", true);
+				factLine.set_ValueOfColumn("OriginalAccount_ID", dLine.getAccount_ID());
 				// Set Info & Account
 				factLine.setDocumentInfo(m_doc, dLine.getDocLine());
 				factLine.setAccount(m_acctSchema, dl.getAccount());
