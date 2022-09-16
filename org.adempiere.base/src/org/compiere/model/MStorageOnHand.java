@@ -1697,7 +1697,7 @@ public class MStorageOnHand extends X_M_StorageOnHand
 					
 		
 		if (org.get_ValueAsBoolean("UseMaterialPolicyDate"))
-			sql += " AND s.DateMaterialPolicy <= '" + DateTrx + "'";
+			sql += " AND DateMaterialPolicy <= '" + DateTrx + "'";
 		
 		sql += " ORDER BY QtyOnHand DESC";
 		

@@ -314,7 +314,7 @@ public class Doc_MatchPO extends Doc
 			if (m_oLine.getC_Currency_ID() != as.getC_Currency_ID())
 			{
 				MOrder order = m_oLine.getParent();
-				Timestamp dateAcct = inOut.getDateAcct();
+				Timestamp dateAcct = order.getDateOrdered();
 				BigDecimal rate = MConversionRate.getRate(
 					order.getC_Currency_ID(), as.getC_Currency_ID(),
 					dateAcct, order.getC_ConversionType_ID(),
@@ -347,7 +347,7 @@ public class Doc_MatchPO extends Doc
 		if (m_oLine.getC_Currency_ID() != as.getC_Currency_ID())
 		{
 			MOrder order = m_oLine.getParent();
-			Timestamp dateAcct = inOut.getDateAcct();
+			Timestamp dateAcct = order.getDateOrdered();
 			BigDecimal rate = MConversionRate.getRate(
 				order.getC_Currency_ID(), as.getC_Currency_ID(),
 				dateAcct, order.getC_ConversionType_ID(),
@@ -553,7 +553,7 @@ public class Doc_MatchPO extends Doc
 							if(MAcctSchema.COSTINGMETHOD_AveragePO.equals(product.getCostingMethod(as))) 
 							{
 								orderCost = mPO[i].getM_InOutLine().getC_OrderLine().getPriceActual();
-								Timestamp dateAcct = mPO[i].getM_InOutLine().getM_InOut().getDateAcct();
+								Timestamp dateAcct = mPO[i].getM_InOutLine().getC_OrderLine().getDateOrdered();
 								BigDecimal rate = MConversionRate.getRate(
 									order.getC_Currency_ID(), as.getC_Currency_ID(),
 									dateAcct, order.getC_ConversionType_ID(),
