@@ -17,7 +17,6 @@
 package org.compiere.acct;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -27,7 +26,6 @@ import java.util.logging.Level;
 import org.compiere.model.MAccount;
 import org.compiere.model.MAcctSchema;
 import org.compiere.model.MAcctSchemaElement;
-import org.compiere.model.MCurrency;
 import org.compiere.model.MDistribution;
 import org.compiere.model.MDistributionLine;
 import org.compiere.model.MElementValue;
@@ -352,7 +350,7 @@ public final class Fact {
 			for (int i = 0; i < m_lines.size(); i++) {
 				FactLine line = (FactLine) m_lines.get(i);
 				Integer key = Integer.valueOf(line.getAD_Org_ID());
-				BigDecimal bal = line.getSourceBalance();
+				BigDecimal bal = line.getAcctBalance();
 				BigDecimal oldBal = (BigDecimal) map.get(key);
 				if (oldBal != null)
 					bal = bal.add(oldBal);
@@ -360,7 +358,7 @@ public final class Fact {
 			}
 
 			// check if there are not balance entries involving multiple organizations
-			Map<Integer, BigDecimal> notBalance = new HashMap<>();
+			HashMap<Integer, BigDecimal> notBalance = new HashMap<Integer, BigDecimal>();
 			for (Map.Entry<Integer, BigDecimal> entry : map.entrySet()) {
 				BigDecimal bal = entry.getValue();
 				if (bal.signum() != 0) {
@@ -411,21 +409,16 @@ public final class Fact {
 		// Org
 		if (elementType.equals(MAcctSchemaElement.ELEMENTTYPE_Organization)) {
 			HashMap<Integer, Balance> map = new HashMap<Integer, Balance>();
-			HashMap<Integer, Balance> mapaccounted = new HashMap<Integer, Balance>();
 			// Add up values by key
 			for (int i = 0; i < m_lines.size(); i++) {
 				FactLine line = (FactLine) m_lines.get(i);
 				Integer key = Integer.valueOf(line.getAD_Org_ID());
 				Balance oldBalance = (Balance) map.get(key);
-				Balance oldBalanceAccounted = (Balance) mapaccounted.get(key);
 				if (oldBalance == null) {
-					oldBalance = new Balance(line.getAmtSourceDr(), line.getAmtSourceCr());
-					oldBalanceAccounted = new Balance(line.getAmtAcctDr(), line.getAmtAcctCr());
+					oldBalance = new Balance(line.getAmtAcctDr(), line.getAmtAcctCr());
 					map.put(key, oldBalance);
-					mapaccounted.put(key, oldBalanceAccounted);
 				} else {
-					oldBalance.add(line.getAmtSourceDr(), line.getAmtSourceCr());
-					oldBalanceAccounted.add(line.getAmtAcctDr(), line.getAmtAcctCr());
+					oldBalance.add(line.getAmtAcctDr(), line.getAmtAcctCr());
 				}
 			}
 
@@ -434,41 +427,30 @@ public final class Fact {
 			while (keys.hasNext()) {
 				Integer key = keys.next();
 				Balance difference = map.get(key);
-				Balance differenceAccounted = mapaccounted.get(key);
 				if (log.isLoggable(Level.INFO))
 					log.info(elementType + "=" + key + ", " + difference);
 				//
 				if (!difference.isZeroBalance()) {
 					// Create Balancing Entry
 					FactLine line = new FactLine(m_doc.getCtx(), m_doc.get_Table_ID(), m_doc.get_ID(), 0, m_trxName);
-					BigDecimal rate = Env.ZERO;
-					int precision = MCurrency.getStdPrecision(m_doc.getCtx(), m_doc.getC_Currency_ID());
-					if (difference.getPostBalance().signum() != 0 && differenceAccounted.getPostBalance().signum() != 0) {
-						rate =  differenceAccounted.getPostBalance().divide(difference.getPostBalance(), precision, RoundingMode.HALF_UP);
-						
-						if (rate.compareTo(Env.ZERO) < 0)
-							rate = rate.negate();
-						if (rate.compareTo(Env.ONE) == 1)
-							line.setCurrencyrate(rate);
-					}
 					line.setDocumentInfo(m_doc, null);
 					line.setPostingType(m_postingType);
 					// Amount & Account
 					if (difference.getBalance().signum() < 0) {
 						if (difference.isReversal()) {
 							line.setAccount(m_acctSchema, m_acctSchema.getDueTo_Acct(elementType));
-							line.setAmtSource(m_doc.getC_Currency_ID(), Env.ZERO, difference.getPostBalance());
+							line.setAmtSource(m_acctSchema.getC_Currency_ID(), Env.ZERO, difference.getPostBalance());
 						} else {
 							line.setAccount(m_acctSchema, m_acctSchema.getDueFrom_Acct(elementType));
-							line.setAmtSource(m_doc.getC_Currency_ID(), difference.getPostBalance(), Env.ZERO);
+							line.setAmtSource(m_acctSchema.getC_Currency_ID(), difference.getPostBalance(), Env.ZERO);
 						}
 					} else {
 						if (difference.isReversal()) {
 							line.setAccount(m_acctSchema, m_acctSchema.getDueFrom_Acct(elementType));
-							line.setAmtSource(m_doc.getC_Currency_ID(), difference.getPostBalance(), Env.ZERO);
+							line.setAmtSource(m_acctSchema.getC_Currency_ID(), difference.getPostBalance(), Env.ZERO);
 						} else {
 							line.setAccount(m_acctSchema, m_acctSchema.getDueTo_Acct(elementType));
-							line.setAmtSource(m_doc.getC_Currency_ID(), Env.ZERO, difference.getPostBalance());
+							line.setAmtSource(m_acctSchema.getC_Currency_ID(), Env.ZERO, difference.getPostBalance());
 						}
 					}
 					line.convert();
