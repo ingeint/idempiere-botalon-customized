@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Vector;
 import java.util.logging.Level;
 
+import org.adempiere.exceptions.AdempiereException;
 import org.compiere.apps.IStatusBar;
 import org.compiere.minigrid.IMiniTable;
 import org.compiere.model.GridTab;
@@ -231,12 +232,17 @@ public abstract class CreateFromShipment extends CreateFrom
 			pstmt.setInt(1, C_Order_ID);
 			rs = pstmt.executeQuery();
 			while (rs.next())
-			{
+			{	
+				
 				Vector<Object> line = new Vector<Object>();
 				line.add(Boolean.FALSE);           //  0-Selection
 				BigDecimal qtyOrdered = rs.getBigDecimal(1);
 				BigDecimal multiplier = rs.getBigDecimal(2);
 				BigDecimal qtyEntered = qtyOrdered.multiply(multiplier);
+				
+				if (qtyEntered.compareTo(Env.ZERO) <= 0)
+					continue;
+				
 				line.add(qtyEntered);  //  1-Qty
 				KeyNamePair pp = new KeyNamePair(rs.getInt(3), rs.getString(4).trim());
 				line.add(pp);                           //  2-UOM
@@ -340,6 +346,8 @@ public abstract class CreateFromShipment extends CreateFrom
 	               
 	        while (rs.next())
             {
+	        	if (rs.getBigDecimal(3).compareTo(Env.ZERO) <=0)
+	        		continue;
 	            Vector<Object> line = new Vector<Object>(7);
 	            line.add(Boolean.FALSE);   // 0-Selection
 	            line.add(rs.getBigDecimal(3));  // 1-Qty
@@ -419,6 +427,8 @@ public abstract class CreateFromShipment extends CreateFrom
 				BigDecimal qtyInvoiced = rs.getBigDecimal(1);
 				BigDecimal multiplier = rs.getBigDecimal(2);
 				BigDecimal qtyEntered = qtyInvoiced.multiply(multiplier);
+				if (qtyEntered.compareTo(Env.ZERO) <=0)
+					continue;
 				line.add(qtyEntered); // 1-Qty
 				KeyNamePair pp = new KeyNamePair(rs.getInt(3), rs.getString(4).trim());
 				line.add(pp); // 2-UOM
@@ -615,15 +625,30 @@ public abstract class CreateFromShipment extends CreateFrom
 				MRMALine rmal = null;
 				if (C_OrderLine_ID != 0)
 				{
+					
 					iol.setC_OrderLine_ID(C_OrderLine_ID);
 					ol = new MOrderLine (Env.getCtx(), C_OrderLine_ID, trxName);
+					
 					if (ol.getQtyEntered().compareTo(ol.getQtyOrdered()) != 0)
 					{
-						iol.setMovementQty(QtyEntered
+						BigDecimal qty = QtyEntered
 								.multiply(ol.getQtyOrdered())
-								.divide(ol.getQtyEntered(), 12, RoundingMode.HALF_UP));
+								.divide(ol.getQtyEntered(), 12, RoundingMode.HALF_UP);
+						
+						iol.setMovementQty(qty);
 						iol.setC_UOM_ID(ol.getC_UOM_ID());
+						
+						
+						if (qty.compareTo(ol.getQtyOrdered().subtract(ol.getQtyDelivered())) > 0)
+							throw new AdempiereException("@QtyexceededsOrdered@");
+						
+					} else  {
+						
+						if (QtyEntered.compareTo(ol.getQtyEntered().subtract(ol.getQtyDelivered())) > 0)
+							throw new AdempiereException("@QtyexceededsOrdered@");
 					}
+					
+					
 					iol.setM_AttributeSetInstance_ID(ol.getM_AttributeSetInstance_ID());
 					iol.setDescription(ol.getDescription());
 					//

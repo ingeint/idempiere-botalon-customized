@@ -187,7 +187,7 @@ public abstract class CreateFrom implements ICreateFrom
 
 		Vector<Vector<Object>> data = new Vector<Vector<Object>>();
 		StringBuilder sql = new StringBuilder("SELECT ");
-		sql.append(forCreditMemo ? "SUM(COALESCE(m.Qty,0))," : "l.QtyOrdered-SUM(COALESCE(m.Qty,0)),");	//	1
+		sql.append(forCreditMemo ? "SUM(COALESCE(m.Qty,0)) - COALESCE((SELECT sum(ci.QtyInvoiced) FROM c_invoiceline ci JOIN c_invoice c ON ci.c_invoice_id = c.c_invoice_id AND c.docstatus != 'CO' WHERE ci.c_orderline_id = l.c_orderline_id),0) ," : "l.QtyOrdered-SUM(COALESCE(m.Qty,0)) - COALESCE((SELECT sum(ci.QtyInvoiced) FROM c_invoiceline ci JOIN c_invoice c ON ci.c_invoice_id = c.c_invoice_id AND c.docstatus != 'CO' WHERE ci.c_orderline_id = l.c_orderline_id),0),");	//	1
 		sql.append("CASE WHEN l.QtyOrdered=0 THEN 0 ELSE l.QtyEntered/l.QtyOrdered END,"	//	2
 			+ " l.C_UOM_ID,COALESCE(uom.UOMSymbol,uom.Name),"			//	3..4
 			+ " COALESCE(l.M_Product_ID,0),COALESCE(p.Name,c.Name),po.VendorProductNo,"	//	5..7
@@ -226,6 +226,8 @@ public abstract class CreateFrom implements ICreateFrom
 				BigDecimal qtyOrdered = rs.getBigDecimal(1);
 				BigDecimal multiplier = rs.getBigDecimal(2);
 				BigDecimal qtyEntered = qtyOrdered.multiply(multiplier);
+				if (qtyEntered.compareTo(Env.ZERO) <= 0)
+					continue;
 				line.add(qtyEntered);                   //  1-Qty
 				KeyNamePair pp = new KeyNamePair(rs.getInt(3), rs.getString(4).trim());
 				line.add(pp);                           //  2-UOM

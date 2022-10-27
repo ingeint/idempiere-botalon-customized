@@ -321,6 +321,8 @@ public class MPeriod extends X_C_Period implements ImmutablePOSupport
 				|| tableID == MMatchInv.Table_ID
 				|| tableID == MMatchPO.Table_ID) {
 			idxdate = po.get_ColumnIndex("DateTrx");
+		} else if (tableID == MInvoice.Table_ID || tableID == MPayment.Table_ID) { 
+			idxdate = po.get_ColumnIndex("DateAcctCustom");
 		} else {
 			idxdate = po.get_ColumnIndex("DateAcct");
 		}

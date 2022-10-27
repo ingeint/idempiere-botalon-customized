@@ -195,7 +195,7 @@ public abstract class CreateFromInvoice extends CreateFrom
 		Vector<Vector<Object>> data = new Vector<Vector<Object>>();
 		StringBuilder sql = new StringBuilder("SELECT ");	//	QtyEntered
 		if(!isSOTrx)
-			sql.append("l.Movementqty-SUM(COALESCE(mi.Qty, 0))*CASE WHEN io.MovementType = 'V-' THEN -1 ELSE 1 END,");
+			sql.append("(l.Movementqty-SUM(COALESCE(mi.Qty, 0)) - COALESCE((SELECT sum(ci.QtyInvoiced) FROM c_invoiceline ci WHERE ci.m_inoutline_id  = l.m_inoutline_id),0)) *CASE WHEN io.MovementType = 'V-' THEN -1 ELSE 1 END,");
 		else
 			sql.append("l.MovementQty-SUM(COALESCE(il.QtyInvoiced,0)),");
 		sql.append(" l.QtyEntered/l.MovementQty,"
@@ -241,6 +241,8 @@ public abstract class CreateFromInvoice extends CreateFrom
 				BigDecimal qtyMovement = rs.getBigDecimal(1);
 				BigDecimal multiplier = rs.getBigDecimal(2);
 				BigDecimal qtyEntered = qtyMovement.multiply(multiplier);
+				if (qtyEntered.compareTo(Env.ZERO) <= 0)
+					continue;
 				line.add(qtyEntered);  //  1-Qty
 				KeyNamePair pp = new KeyNamePair(rs.getInt(3), rs.getString(4).trim());
 				line.add(pp);                           //  2-UOM
@@ -329,6 +331,10 @@ public abstract class CreateFromInvoice extends CreateFrom
             {
 	            Vector<Object> line = new Vector<Object>(7);
 	            line.add(Boolean.FALSE);   // 0-Selection
+	            
+	            if (rs.getBigDecimal(3).compareTo(Env.ZERO) <= 0)
+					continue;
+	            
 	            line.add(rs.getBigDecimal(3));  // 1-Qty
 	            KeyNamePair pp = new KeyNamePair(rs.getInt(6), rs.getString(7));
 	            line.add(pp); // 2-UOM
@@ -484,11 +490,20 @@ public abstract class CreateFromInvoice extends CreateFrom
 					if (orderLine == null && inoutLine.getC_OrderLine_ID() != 0)
 					{
 						C_OrderLine_ID = inoutLine.getC_OrderLine_ID();
-						orderLine = new MOrderLine (Env.getCtx(), C_OrderLine_ID, trxName);
+						orderLine = new MOrderLine (Env.getCtx(), C_OrderLine_ID, trxName);					
 					}
+					
+					if (QtyInvoiced.compareTo(orderLine.getQtyOrdered().subtract(orderLine.getQtyInvoiced())) > 0)
+						throw new AdempiereException("@QtyexceededsOrdered@");
+					
+					
 				}
 				else if (C_OrderLine_ID > 0)
 				{
+					orderLine = new MOrderLine (Env.getCtx(), C_OrderLine_ID, trxName);
+					if (QtyInvoiced.compareTo(orderLine.getQtyOrdered().subtract(orderLine.getQtyInvoiced())) > 0)
+						throw new AdempiereException("@QtyexceededsOrdered@");
+					
 					String whereClause = "EXISTS (SELECT 1 FROM M_InOut io WHERE io.M_InOut_ID=M_InOutLine.M_InOut_ID AND io.DocStatus IN ('CO','CL'))";
 					MInOutLine[] lines = MInOutLine.getOfOrderLine(Env.getCtx(),
 						C_OrderLine_ID, whereClause, trxName);
@@ -509,6 +524,8 @@ public abstract class CreateFromInvoice extends CreateFrom
 								M_InOutLine_ID = inoutLine.getM_InOutLine_ID();
 								break;
 							}
+							
+							
 						}
 //						if (inoutLine == null)
 //						{
