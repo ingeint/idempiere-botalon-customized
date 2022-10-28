@@ -91,11 +91,15 @@ public abstract class CreateFromInvoice extends CreateFrom
 		ArrayList<KeyNamePair> list = new ArrayList<KeyNamePair>();
 
 		//	Display
-		StringBuffer display = new StringBuffer("s.DocumentNo||' - '||")
-			.append(DB.TO_CHAR("s.MovementDate", DisplayType.Date, Env.getAD_Language(Env.getCtx())));
+		StringBuffer display = new StringBuffer("s.DocumentNo")
+			.append("||' - '||")	
+			.append(DB.TO_CHAR("s.MovementDate", DisplayType.Date, Env.getAD_Language(Env.getCtx())))
+			.append("||' - '||")	
+			.append(DB.TO_CHAR("w.Name", DisplayType.Chart, Env.getAD_Language(Env.getCtx())));
+
 		//
 		StringBuffer sql = new StringBuffer("SELECT s.M_InOut_ID,").append(display)
-			.append(" FROM M_InOut s "
+			.append(" FROM M_InOut s  JOIN M_Warehouse w ON s.M_Warehouse_ID =  w.M_Warehouse_ID "
 			+ "WHERE s.C_BPartner_ID=? AND s.IsSOTrx=? AND s.DocStatus IN ('CL','CO')"
 			+ " AND s.M_InOut_ID IN "
 				+ "(SELECT sl.M_InOut_ID FROM M_InOutLine sl");

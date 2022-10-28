@@ -33,15 +33,14 @@ import org.compiere.util.DisplayType;
 import org.compiere.util.Env;
 import org.compiere.util.KeyNamePair;
 
-public abstract class CreateFrom implements ICreateFrom
-{
-	/**	Logger			*/
+public abstract class CreateFrom implements ICreateFrom {
+	/** Logger */
 	protected transient CLogger log = CLogger.getCLogger(getClass());
 
-	/** Loaded Order            */
+	/** Loaded Order */
 	protected MOrder p_order = null;
 
-	/**  Loaded RMA             */
+	/** Loaded RMA */
 	protected MRMA m_rma = null;
 
 	private GridTab gridTab;
@@ -49,16 +48,16 @@ public abstract class CreateFrom implements ICreateFrom
 	private String title;
 
 	private boolean initOK = false;
-	
+
 	protected boolean isSOTrx = false;
 
 	public CreateFrom(GridTab gridTab) {
 		this.gridTab = gridTab;
-		
-		GridField field = gridTab.getField("IsSOTrx"); 
-		if (field != null) 
-			isSOTrx = (Boolean) field.getValue(); 
-		else 
+
+		GridField field = gridTab.getField("IsSOTrx");
+		if (field != null)
+			isSOTrx = (Boolean) field.getValue();
+		else
 			isSOTrx = "Y".equals(Env.getContext(Env.getCtx(), gridTab.getWindowNo(), "IsSOTrx"));
 	}
 
@@ -69,59 +68,57 @@ public abstract class CreateFrom implements ICreateFrom
 	public abstract boolean save(IMiniTable miniTable, String trxName);
 
 	/**
-	 *	Init OK to be able to make changes?
-	 *  @return on if initialized
+	 * Init OK to be able to make changes?
+	 * 
+	 * @return on if initialized
 	 */
-	public boolean isInitOK()
-	{
+	public boolean isInitOK() {
 		return initOK;
 	}
 
-	public void setInitOK(boolean initOK)
-	{
+	public void setInitOK(boolean initOK) {
 		this.initOK = initOK;
 	}
 
 	/**
-	 *  Load PBartner dependent Order/Invoice/Shipment Field.
-	 *  @param C_BPartner_ID BPartner
-	 *  @param forInvoice for invoice
+	 * Load PBartner dependent Order/Invoice/Shipment Field.
+	 * 
+	 * @param C_BPartner_ID BPartner
+	 * @param forInvoice    for invoice
 	 */
-	protected ArrayList<KeyNamePair> loadOrderData (int C_BPartner_ID, boolean forInvoice, boolean sameWarehouseOnly)
-	{
+	protected ArrayList<KeyNamePair> loadOrderData(int C_BPartner_ID, boolean forInvoice, boolean sameWarehouseOnly) {
 		return loadOrderData(C_BPartner_ID, forInvoice, sameWarehouseOnly, false);
 	}
-	
-	protected ArrayList<KeyNamePair> loadOrderData (int C_BPartner_ID, boolean forInvoice, boolean sameWarehouseOnly, boolean forCreditMemo)
-	{
+
+	protected ArrayList<KeyNamePair> loadOrderData(int C_BPartner_ID, boolean forInvoice, boolean sameWarehouseOnly,
+			boolean forCreditMemo) {
 		ArrayList<KeyNamePair> list = new ArrayList<KeyNamePair>();
 
-		String isSOTrxParam = isSOTrx ? "Y":"N";
-		//	Display
+		String isSOTrxParam = isSOTrx ? "Y" : "N";
+		// Display
 		StringBuilder display = new StringBuilder("o.DocumentNo||' - ' ||")
-			.append(DB.TO_CHAR("o.DateOrdered", DisplayType.Date, Env.getAD_Language(Env.getCtx())))
-			.append("||' - '||")
-			.append(DB.TO_CHAR("o.GrandTotal", DisplayType.Amount, Env.getAD_Language(Env.getCtx())));
+				.append(DB.TO_CHAR("o.DateOrdered", DisplayType.Date, Env.getAD_Language(Env.getCtx())))
+				.append("||' - '||")
+				.append(DB.TO_CHAR("o.GrandTotal", DisplayType.Amount, Env.getAD_Language(Env.getCtx())))
+				.append("||' - '||")
+				.append(DB.TO_CHAR("w.Name", DisplayType.Chart, Env.getAD_Language(Env.getCtx())));
 		//
 		String column = "ol.QtyDelivered";
 		String colBP = "o.C_BPartner_ID";
-		if (forInvoice)
-		{
+		if (forInvoice) {
 			column = "ol.QtyInvoiced";
 			colBP = "o.Bill_BPartner_ID";
 		}
-		StringBuilder sql = new StringBuilder("SELECT o.C_Order_ID,")
-			.append(display)
-			.append(" FROM C_Order o WHERE ")
-			.append(colBP)
-			.append("=? AND o.IsSOTrx=? AND o.DocStatus IN ('CL','CO') AND o.C_Order_ID IN (SELECT ol.C_Order_ID FROM C_OrderLine ol WHERE ");
+		StringBuilder sql = new StringBuilder("SELECT o.C_Order_ID,").append(display).append(" FROM C_Order o JOIN M_Warehouse w ON w.M_Warehouse_ID = o.M_Warehouse_ID  WHERE ")
+				.append(colBP)
+				.append("=? AND o.IsSOTrx=? AND o.DocStatus IN ('CO') AND o.C_Order_ID IN (SELECT ol.C_Order_ID FROM C_OrderLine ol WHERE ");
 		if (forCreditMemo)
-			sql.append(column).append(">0 AND (CASE WHEN ol.QtyDelivered>=ol.QtyOrdered THEN ol.QtyDelivered-ol.QtyInvoiced!=0 ELSE 1=1 END)) ");
+			sql.append(column).append(
+					">0 AND (CASE WHEN ol.QtyDelivered>=ol.QtyOrdered THEN ol.QtyDelivered-ol.QtyInvoiced!=0 ELSE 1=1 END)) ");
 		else
 			sql.append("ol.QtyOrdered-").append(column).append("!=0) ");
-					
-		if(sameWarehouseOnly)
-		{
+
+		if (sameWarehouseOnly) {
 			sql = sql.append(" AND o.M_Warehouse_ID=? ");
 		}
 		if (forCreditMemo)
@@ -131,150 +128,132 @@ public abstract class CreateFrom implements ICreateFrom
 		//
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
-		try
-		{
+		try {
 			pstmt = DB.prepareStatement(sql.toString(), null);
 			pstmt.setInt(1, C_BPartner_ID);
 			pstmt.setString(2, isSOTrxParam);
-			if(sameWarehouseOnly)
-			{
-				//only active for material receipts
+			if (sameWarehouseOnly) {
+				// only active for material receipts
 				pstmt.setInt(3, getM_Warehouse_ID());
 			}
 			rs = pstmt.executeQuery();
-			while (rs.next())
-			{
+			while (rs.next()) {
 				list.add(new KeyNamePair(rs.getInt(1), rs.getString(2)));
 			}
-		}
-		catch (SQLException e)
-		{
+		} catch (SQLException e) {
 			log.log(Level.SEVERE, sql.toString(), e);
-		}
-		finally
-		{
+		} finally {
 			DB.close(rs, pstmt);
-			rs = null; pstmt = null;
+			rs = null;
+			pstmt = null;
 		}
 
 		return list;
-	}   //  initBPartnerOIS
+	} // initBPartnerOIS
 
 	/**
-	 *  Load Data - Order
-	 *  @param C_Order_ID Order
-	 *  @param forInvoice true if for invoice vs. delivery qty
+	 * Load Data - Order
+	 * 
+	 * @param C_Order_ID Order
+	 * @param forInvoice true if for invoice vs. delivery qty
 	 */
-	protected Vector<Vector<Object>> getOrderData (int C_Order_ID, boolean forInvoice)
-	{
-		return getOrderData (C_Order_ID, forInvoice, false);
+	protected Vector<Vector<Object>> getOrderData(int C_Order_ID, boolean forInvoice) {
+		return getOrderData(C_Order_ID, forInvoice, false);
 	}
-	
-	protected Vector<Vector<Object>> getOrderData (int C_Order_ID, boolean forInvoice, boolean forCreditMemo)
-	{
+
+	protected Vector<Vector<Object>> getOrderData(int C_Order_ID, boolean forInvoice, boolean forCreditMemo) {
 		/**
-		 *  Selected        - 0
-		 *  Qty             - 1
-		 *  C_UOM_ID        - 2
-		 *  M_Product_ID    - 3
-		 *  VendorProductNo - 4
-		 *  OrderLine       - 5
-		 *  ShipmentLine    - 6
-		 *  InvoiceLine     - 7
+		 * Selected - 0 Qty - 1 C_UOM_ID - 2 M_Product_ID - 3 VendorProductNo - 4
+		 * OrderLine - 5 ShipmentLine - 6 InvoiceLine - 7
 		 */
-		if (log.isLoggable(Level.CONFIG)) log.config("C_Order_ID=" + C_Order_ID);
-		p_order = new MOrder (Env.getCtx(), C_Order_ID, null);
+		if (log.isLoggable(Level.CONFIG))
+			log.config("C_Order_ID=" + C_Order_ID);
+		p_order = new MOrder(Env.getCtx(), C_Order_ID, null);
 
 		Vector<Vector<Object>> data = new Vector<Vector<Object>>();
 		StringBuilder sql = new StringBuilder("SELECT ");
-		sql.append(forCreditMemo ? "SUM(COALESCE(m.Qty,0)) - COALESCE((SELECT sum(ci.QtyInvoiced) FROM c_invoiceline ci JOIN c_invoice c ON ci.c_invoice_id = c.c_invoice_id AND c.docstatus != 'CO' WHERE ci.c_orderline_id = l.c_orderline_id),0) ," : "l.QtyOrdered-SUM(COALESCE(m.Qty,0)) - COALESCE((SELECT sum(ci.QtyInvoiced) FROM c_invoiceline ci JOIN c_invoice c ON ci.c_invoice_id = c.c_invoice_id AND c.docstatus != 'CO' WHERE ci.c_orderline_id = l.c_orderline_id),0),");	//	1
-		sql.append("CASE WHEN l.QtyOrdered=0 THEN 0 ELSE l.QtyEntered/l.QtyOrdered END,"	//	2
-			+ " l.C_UOM_ID,COALESCE(uom.UOMSymbol,uom.Name),"			//	3..4
-			+ " COALESCE(l.M_Product_ID,0),COALESCE(p.Name,c.Name),po.VendorProductNo,"	//	5..7
-			+ " l.C_OrderLine_ID,l.Line "								//	8..9
-			+ "FROM C_OrderLine l"
-			+ " LEFT OUTER JOIN M_Product_PO po ON (l.M_Product_ID = po.M_Product_ID AND l.C_BPartner_ID = po.C_BPartner_ID) "
-			+ " LEFT OUTER JOIN M_MatchPO m ON (l.C_OrderLine_ID=m.C_OrderLine_ID AND ");
+		sql.append(forCreditMemo
+				? "SUM(COALESCE(m.Qty,0)) - COALESCE((SELECT sum(ci.QtyInvoiced) FROM c_invoiceline ci JOIN c_invoice c ON ci.c_invoice_id = c.c_invoice_id AND (CASE WHEN c.issotrx = 'N' THEN c.docstatus != 'CO' ELSE c.docstatus IN ('CO', 'IP', 'CL', 'DR') END) WHERE ci.c_orderline_id = l.c_orderline_id),0) ,"
+				: "l.QtyOrdered-SUM(COALESCE(m.Qty,0)) - COALESCE((SELECT sum(ci.QtyInvoiced) FROM c_invoiceline ci JOIN c_invoice c ON ci.c_invoice_id = c.c_invoice_id AND (CASE WHEN c.issotrx = 'N' THEN c.docstatus != 'CO' ELSE c.docstatus IN ('CO', 'IP', 'CL', 'DR') END) WHERE ci.c_orderline_id = l.c_orderline_id),0),"); // 1
+		sql.append("CASE WHEN l.QtyOrdered=0 THEN 0 ELSE l.QtyEntered/l.QtyOrdered END," // 2
+				+ " l.C_UOM_ID,COALESCE(uom.UOMSymbol,uom.Name)," // 3..4
+				+ " COALESCE(l.M_Product_ID,0),COALESCE(p.Name,c.Name),po.VendorProductNo," // 5..7
+				+ " l.C_OrderLine_ID,l.Line " // 8..9
+				+ "FROM C_OrderLine l"
+				+ " LEFT OUTER JOIN M_Product_PO po ON (l.M_Product_ID = po.M_Product_ID AND l.C_BPartner_ID = po.C_BPartner_ID) "
+				+ " LEFT OUTER JOIN M_MatchPO m ON (l.C_OrderLine_ID=m.C_OrderLine_ID AND ");
 		sql.append(forInvoice ? "m.C_InvoiceLine_ID" : "m.M_InOutLine_ID");
 		sql.append(" IS NOT NULL AND COALESCE(m.Reversal_ID,0)=0)")
-			.append(" LEFT OUTER JOIN M_Product p ON (l.M_Product_ID=p.M_Product_ID)"
-			+ " LEFT OUTER JOIN C_Charge c ON (l.C_Charge_ID=c.C_Charge_ID)");
+				.append(" LEFT OUTER JOIN M_Product p ON (l.M_Product_ID=p.M_Product_ID)"
+						+ " LEFT OUTER JOIN C_Charge c ON (l.C_Charge_ID=c.C_Charge_ID)");
 		if (Env.isBaseLanguage(Env.getCtx(), "C_UOM"))
 			sql.append(" LEFT OUTER JOIN C_UOM uom ON (l.C_UOM_ID=uom.C_UOM_ID)");
 		else
 			sql.append(" LEFT OUTER JOIN C_UOM_Trl uom ON (l.C_UOM_ID=uom.C_UOM_ID AND uom.AD_Language='")
-				.append(Env.getAD_Language(Env.getCtx())).append("')");
+					.append(Env.getAD_Language(Env.getCtx())).append("')");
 		//
-		sql.append(" WHERE l.C_Order_ID=? "			//	#1
-			+ "GROUP BY l.QtyOrdered,CASE WHEN l.QtyOrdered=0 THEN 0 ELSE l.QtyEntered/l.QtyOrdered END, "
-			+ "l.C_UOM_ID,COALESCE(uom.UOMSymbol,uom.Name),po.VendorProductNo, "
-				+ "l.M_Product_ID,COALESCE(p.Name,c.Name), l.Line,l.C_OrderLine_ID "
-			+ "ORDER BY l.Line");
+		sql.append(" WHERE l.C_Order_ID=? " // #1
+				+ "GROUP BY l.QtyOrdered,CASE WHEN l.QtyOrdered=0 THEN 0 ELSE l.QtyEntered/l.QtyOrdered END, "
+				+ "l.C_UOM_ID,COALESCE(uom.UOMSymbol,uom.Name),po.VendorProductNo, "
+				+ "l.M_Product_ID,COALESCE(p.Name,c.Name), l.Line,l.C_OrderLine_ID " + "ORDER BY l.Line");
 		//
-		if (log.isLoggable(Level.FINER)) log.finer(sql.toString());
+		if (log.isLoggable(Level.FINER))
+			log.finer(sql.toString());
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
-		try
-		{
+		try {
 			pstmt = DB.prepareStatement(sql.toString(), null);
 			pstmt.setInt(1, C_Order_ID);
 			rs = pstmt.executeQuery();
-			while (rs.next())
-			{
+			while (rs.next()) {
 				Vector<Object> line = new Vector<Object>();
-				line.add(Boolean.FALSE);           //  0-Selection
+				line.add(Boolean.FALSE); // 0-Selection
 				BigDecimal qtyOrdered = rs.getBigDecimal(1);
 				BigDecimal multiplier = rs.getBigDecimal(2);
 				BigDecimal qtyEntered = qtyOrdered.multiply(multiplier);
 				if (qtyEntered.compareTo(Env.ZERO) <= 0)
 					continue;
-				line.add(qtyEntered);                   //  1-Qty
+				line.add(qtyEntered); // 1-Qty
 				KeyNamePair pp = new KeyNamePair(rs.getInt(3), rs.getString(4).trim());
-				line.add(pp);                           //  2-UOM
+				line.add(pp); // 2-UOM
 				pp = new KeyNamePair(rs.getInt(5), rs.getString(6));
-				line.add(pp);                           //  3-Product
-				line.add(rs.getString(7));				// 4-VendorProductNo
+				line.add(pp); // 3-Product
+				line.add(rs.getString(7)); // 4-VendorProductNo
 				pp = new KeyNamePair(rs.getInt(8), rs.getString(9));
-				line.add(pp);                           //  5-OrderLine
-				line.add(null);                         //  6-Ship
-				line.add(null);                         //  7-Invoice
+				line.add(pp); // 5-OrderLine
+				line.add(null); // 6-Ship
+				line.add(null); // 7-Invoice
 				data.add(line);
 			}
-		}
-		catch (Exception e)
-		{
+		} catch (Exception e) {
 			log.log(Level.SEVERE, sql.toString(), e);
-		}
-		finally
-		{
+		} finally {
 			DB.close(rs, pstmt);
-			rs = null; pstmt = null;
+			rs = null;
+			pstmt = null;
 		}
 
 		return data;
-	}   //  LoadOrder
+	} // LoadOrder
 
-	public void showWindow()
-	{
-
-	}
-
-	public void closeWindow()
-	{
+	public void showWindow() {
 
 	}
 
-	public GridTab getGridTab()
-	{
+	public void closeWindow() {
+
+	}
+
+	public GridTab getGridTab() {
 		return gridTab;
 	}
 
 	/**
 	 * Get Warehouse from window's context
+	 * 
 	 * @return warehouse id
 	 */
-	public int getM_Warehouse_ID()
-	{
+	public int getM_Warehouse_ID() {
 		return Env.getContextAsInt(Env.getCtx(), gridTab.getWindowNo(), "M_Warehouse_ID");
 	}
 
