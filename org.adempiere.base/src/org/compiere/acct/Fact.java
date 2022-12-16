@@ -728,6 +728,7 @@ public final class Fact {
 					factLine.setAmtSource(dLine.getC_Currency_ID(), null, dl.getAmt().negate());
 				else
 					factLine.setAmtSource(dLine.getC_Currency_ID(), dl.getAmt(), null);
+				factLine.setM_Locator_ID(dLine.getM_Locator_ID());
 				factLine.setQty(dl.getQty());
 				// Convert
 				factLine.convert();
